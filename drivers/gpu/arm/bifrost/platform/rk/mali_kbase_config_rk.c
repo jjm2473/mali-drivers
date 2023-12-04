@@ -119,7 +119,9 @@ static void rk_pm_power_off_delay_work(struct work_struct *work)
 	}
 
 	platform->is_powered = false;
+#ifdef CONFIG_PM_WAKELOCKS
 	wake_unlock(&platform->wake_lock);
+#endif
 
 	mutex_unlock(&platform->lock);
 }
@@ -151,7 +153,9 @@ static int kbase_platform_rk_init(struct kbase_device *kbdev)
 	}
 	INIT_DEFERRABLE_WORK(&platform->work, rk_pm_power_off_delay_work);
 
+#ifdef CONFIG_PM_WAKELOCKS
 	wake_lock_init(&platform->wake_lock, WAKE_LOCK_SUSPEND, "gpu");
+#endif
 
 	platform->utilisation_period = DEFAULT_UTILISATION_PERIOD_IN_MS;
 
@@ -169,7 +173,9 @@ static int kbase_platform_rk_init(struct kbase_device *kbdev)
 	return 0;
 
 err_sysfs_files:
+#ifdef CONFIG_PM_WAKELOCKS
 	wake_lock_destroy(&platform->wake_lock);
+#endif
 	destroy_workqueue(platform->power_off_wq);
 err_wq:
 	return ret;
@@ -185,7 +191,9 @@ static void kbase_platform_rk_term(struct kbase_device *kbdev)
 
 	if (platform) {
 		cancel_delayed_work_sync(&platform->work);
+#ifdef CONFIG_PM_WAKELOCKS
 		wake_lock_destroy(&platform->wake_lock);
+#endif
 		destroy_workqueue(platform->power_off_wq);
 		platform->is_powered = false;
 		platform->kbdev = NULL;
@@ -293,7 +301,9 @@ static int rk_pm_callback_power_on(struct kbase_device *kbdev)
 	rockchip_opp_dvfs_unlock(opp_info);
 
 	platform->is_powered = true;
+#ifdef CONFIG_PM_WAKELOCKS
 	wake_lock(&platform->wake_lock);
+#endif
 
 out:
 	mutex_unlock(&platform->lock);

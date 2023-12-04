@@ -15,7 +15,9 @@
 #ifndef _MALI_KBASE_RK_H_
 #define _MALI_KBASE_RK_H_
 
+#ifdef CONFIG_PM_WAKELOCKS
 #include <linux/wakelock.h>
+#endif
 
 /*---------------------------------------------------------------------------*/
 
@@ -42,11 +44,13 @@ struct rk_context {
 	struct delayed_work work;
 	unsigned int delay_ms;
 
+#ifdef CONFIG_PM_WAKELOCKS
 	/*
 	 * WAKE_LOCK_SUSPEND for ensuring to run
 	 * delayed_work_to_power_off_gpu before suspend.
 	 */
 	struct wake_lock wake_lock;
+#endif
 
 	/* debug only, the period in ms to count gpu_utilisation. */
 	unsigned int utilisation_period;
