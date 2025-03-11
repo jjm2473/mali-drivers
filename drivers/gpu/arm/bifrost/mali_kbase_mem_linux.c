@@ -681,7 +681,9 @@ unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *s,
 	struct kbase_context *kctx = container_of(s, struct kbase_context, reclaim);
 	int evict_nents = atomic_read(&kctx->evict_nents);
 	unsigned long nr_freeable_items;
-
+#if KERNEL_VERSION(6, 3, 0) < LINUX_VERSION_CODE
+#define __GFP_ATOMIC __GFP_HIGH
+#endif
 	WARN((sc->gfp_mask & __GFP_ATOMIC),
 	     "Shrinkers cannot be called for GFP_ATOMIC allocations. Check kernel mm for problems. gfp_mask==%x\n",
 	     sc->gfp_mask);
