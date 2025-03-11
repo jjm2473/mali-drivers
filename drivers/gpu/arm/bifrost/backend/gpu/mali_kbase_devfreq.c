@@ -566,7 +566,9 @@ int kbase_devfreq_init(struct kbase_device *kbdev)
 	struct devfreq_dev_profile *dp;
 	int err;
 	struct dev_pm_opp *opp;
+#if IS_ENABLED(CONFIG_DEVFREQ_THERMAL)
 	unsigned int dyn_power_coeff = 0;
+#endif
 	unsigned int i;
 	bool free_devfreq_freq_table = true;
 
