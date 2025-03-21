@@ -22,7 +22,6 @@
 #include <linux/delay.h>
 #include <linux/nvmem-consumer.h>
 #include <linux/rockchip/cpu.h>
-#include <linux/soc/rockchip/pvtm.h>
 #include <linux/thermal.h>
 #include <soc/rockchip/rockchip_opp_select.h>
 
