@@ -202,8 +202,10 @@ extern int mali_platform_device_unregister(void);
 #endif
 #endif
 
+#ifdef CONFIG_MALI_DEVFREQ
 extern int rk_platform_init_opp_table(struct mali_device *mdev);
 extern void rk_platform_uninit_opp_table(struct mali_device *mdev);
+#endif
 
 /* Linux power management operations provided by the Mali device driver */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29))

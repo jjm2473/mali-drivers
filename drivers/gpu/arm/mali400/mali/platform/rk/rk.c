@@ -505,6 +505,7 @@ static void rk_platform_power_off_gpu(struct device *dev)
 	}
 }
 
+#ifdef CONFIG_MALI_DEVFREQ
 int rk_platform_init_opp_table(struct mali_device *mdev)
 {
 	return rockchip_init_opp_table(mdev->dev, &mdev->opp_info,
@@ -515,6 +516,7 @@ void rk_platform_uninit_opp_table(struct mali_device *mdev)
 {
 	rockchip_uninit_opp_table(mdev->dev, &mdev->opp_info);
 }
+#endif
 
 static int mali_runtime_suspend(struct device *device)
 {
