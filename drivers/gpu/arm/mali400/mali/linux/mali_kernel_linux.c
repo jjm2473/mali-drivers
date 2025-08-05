@@ -519,7 +519,7 @@ static int mali_probe(struct platform_device *pdev)
 	struct mali_device *mdev;
 #endif
 
-	MALI_DEBUG_PRINT(2, ("mali_probe(): Called for platform device %s\n", pdev->name));
+	MALI_DEBUG_PRINT(2, ("mali_probe(): Called for platform device %s\n", dev_name(&pdev->dev)));
 
 	if (NULL != mali_platform_device) {
 		/* Already connected to a device, return error */
@@ -622,7 +622,7 @@ static int mali_probe(struct platform_device *pdev)
 				err = mali_sysfs_register(mali_dev_name);
 
 				if (0 == err) {
-					MALI_DEBUG_PRINT(2, ("mali_probe(): Successfully initialized driver for platform device %s\n", pdev->name));
+					MALI_DEBUG_PRINT(2, ("mali_probe(): Successfully initialized driver for platform device %s\n", dev_name(&pdev->dev)));
 
 					return 0;
 				} else {
@@ -675,7 +675,7 @@ static int mali_remove(struct platform_device *pdev)
 	struct mali_device *mdev = dev_get_drvdata(&pdev->dev);
 #endif
 
-	MALI_DEBUG_PRINT(2, ("mali_remove() called for platform device %s\n", pdev->name));
+	MALI_DEBUG_PRINT(2, ("mali_remove() called for platform device %s\n", dev_name(&pdev->dev)));
 	mali_sysfs_unregister();
 	mali_miscdevice_unregister();
 	mali_terminate_subsystems();
