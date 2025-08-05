@@ -123,7 +123,11 @@ _mali_osk_errcode_t _mali_osk_resource_initialize(void)
 {
 	mali_bool mali_is_450 = MALI_FALSE, mali_is_470 = MALI_FALSE;
 	int i, pp_core_num = 0, l2_core_num = 0;
+#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
 	struct resource *res;
+#else
+	int irq;
+#endif
 	const char *compatible_name = NULL;
 
 	if (0 == _mali_osk_get_compatible_name(&compatible_name)) {
@@ -137,10 +141,17 @@ _mali_osk_errcode_t _mali_osk_resource_initialize(void)
 	}
 
 	for (i = 0; i < MALI_OSK_RESOURCE_WITH_IRQ_NUMBER; i++) {
+#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
 		res = platform_get_resource_byname(mali_platform_device, IORESOURCE_IRQ, mali_osk_resource_bank[i].irq_name);
 		if (res) {
 			mali_osk_resource_bank[i].irq = res->start;
+#else
+		irq = platform_get_irq_byname_optional(mali_platform_device, mali_osk_resource_bank[i].irq_name);
+		if (irq >= 0) {
+			mali_osk_resource_bank[i].irq = irq;
+#endif
 		} else {
+			MALI_DEBUG_PRINT(2, ("get irq res failed: %s", mali_osk_resource_bank[i].irq_name));
 			mali_osk_resource_bank[i].base = MALI_OSK_INVALID_RESOURCE_ADDRESS;
 		}
 	}
