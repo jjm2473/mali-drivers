@@ -600,12 +600,13 @@ static int mali_probe(struct platform_device *pdev)
 	/* initilize pm metrics related */
 	if (mali_pm_metrics_init(mdev) < 0) {
 		MALI_DEBUG_PRINT(2, ("mali pm metrics init failed\n"));
-		goto pm_metrics_init_failed;
+		//goto pm_metrics_init_failed;
 	}
-
+	else
 	if (mali_devfreq_init(mdev) < 0) {
 		MALI_DEBUG_PRINT(2, ("mali devfreq init failed\n"));
-		goto devfreq_init_failed;
+		mdev->devfreq = NULL;
+		//goto devfreq_init_failed;
 	}
 	clk_bulk_disable(mdev->num_clks, mdev->clks);
 #endif
@@ -639,10 +640,12 @@ static int mali_probe(struct platform_device *pdev)
 	}
 
 #ifdef CONFIG_MALI_DEVFREQ
+	if (mdev->devfreq)
 	mali_devfreq_term(mdev);
-devfreq_init_failed:
+//devfreq_init_failed:
+	if (mdev->mali_metrics.lock)
 	mali_pm_metrics_term(mdev);
-pm_metrics_init_failed:
+//pm_metrics_init_failed:
 	clk_bulk_disable_unprepare(mdev->num_clks, mdev->clks);
 clock_prepare_failed:
 	clk_bulk_put(mdev->num_clks, mdev->clks);
@@ -679,8 +682,10 @@ static int mali_remove(struct platform_device *pdev)
 	_mali_osk_wq_term();
 
 #ifdef CONFIG_MALI_DEVFREQ
+	if (mdev->devfreq)
 	mali_devfreq_term(mdev);
 
+	if (mdev->mali_metrics.lock)
 	mali_pm_metrics_term(mdev);
 
 	if (mdev->clock) {
