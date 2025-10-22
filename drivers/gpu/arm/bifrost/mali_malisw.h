@@ -28,6 +28,7 @@
 
 #include <linux/version.h>
 
+#if KERNEL_VERSION(6, 6, 109) > LINUX_VERSION_CODE
 /**
  * MIN - Return the lesser of two values.
  * @x: value1
@@ -51,6 +52,7 @@
  * instead.
  */
 #define MAX(x, y)	((x) < (y) ? (y) : (x))
+#endif
 
 /**
  * CSTD_UNUSED - Function-like macro for suppressing unused variable warnings.

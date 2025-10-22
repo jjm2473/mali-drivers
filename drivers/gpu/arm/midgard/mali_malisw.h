@@ -41,6 +41,7 @@
 #define SIZE_MAX        (~(size_t)0)
 #endif /* LINUX_VERSION_CODE */
 
+#if KERNEL_VERSION(6, 6, 109) > LINUX_VERSION_CODE
 /**
  * MIN - Return the lesser of two values.
  *
@@ -60,6 +61,7 @@
  * instead.
  */
 #define MAX(x, y)	((x) < (y) ? (y) : (x))
+#endif
 
 /**
  * @hideinitializer
