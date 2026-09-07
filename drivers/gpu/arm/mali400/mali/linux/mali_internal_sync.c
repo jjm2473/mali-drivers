@@ -92,7 +92,7 @@ static void mali_internal_fence_check_cb_func(struct dma_fence *fence, struct dm
 	if (ret)
 		wake_up_all(&sync_fence->wq);
 #else
-	ret = sync_fence->fence->ops->signaled(sync_fence->fence);
+	ret = mali_dma_fence_is_signaled(sync_fence->fence);
 
 	if (0 > ret)
 		MALI_PRINT_ERROR(("Mali internal sync:Failed to wait fence  0x%x for sync_fence 0x%x.\n", fence, sync_fence));
@@ -167,7 +167,7 @@ struct mali_internal_sync_timeline *mali_internal_sync_timeline_create(const str
 #else
 	sync_timeline->fence_context = fence_context_alloc(1);
 #endif
-	strlcpy(sync_timeline->name, name, sizeof(sync_timeline->name));
+	strscpy(sync_timeline->name, name, sizeof(sync_timeline->name));
 
 	INIT_LIST_HEAD(&sync_timeline->sync_pt_list_head);
 	spin_lock_init(&sync_timeline->sync_pt_list_lock);
@@ -557,10 +557,7 @@ int mali_internal_sync_fence_wait_async(struct mali_internal_sync_fence *sync_fe
 
 	return !err;
 #else
-	if ((sync_fence->fence) && (sync_fence->fence->ops) && (sync_fence->fence->ops->signaled))
-		err = sync_fence->fence->ops->signaled(sync_fence->fence);
-	else
-		err = -1;
+	err = mali_dma_fence_is_signaled(sync_fence->fence);
 
 	if (0 > err)
 		return err;
@@ -583,7 +580,7 @@ int mali_internal_sync_fence_wait_async(struct mali_internal_sync_fence *sync_fe
 	waiter->work.private = sync_fence;
 
 	spin_lock_irqsave(&sync_fence->wq.lock, flags);
-	err =  sync_fence->fence->ops->signaled(sync_fence->fence);
+	err = mali_dma_fence_is_signaled(sync_fence->fence);
 
 	if (0 == err){
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)

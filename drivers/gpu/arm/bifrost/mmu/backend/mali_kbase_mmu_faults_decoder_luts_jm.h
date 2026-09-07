@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2016, 2020-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -19,5 +19,19 @@
  *
  */
 
-extern const char kbase_drv_name[];
-extern const char kbase_timeline_name[];
+#ifndef _MALI_KBASE_MMU_FAULTS_DECODER_LUTS_JM_H_
+#define _MALI_KBASE_MMU_FAULTS_DECODER_LUTS_JM_H_
+#include <linux/types.h>
+
+/**
+ * decode_fault_source_jm_t() - Get internal requester of a
+ * fault in a human readable format.
+ *
+ * @idx: Internal requester part of SOURCE_ID field of the fault.
+ * @gpu_id: GPU id composed of arch_major << 16 | arch_minor << 8 | arch_rev.
+ *
+ * Return: Internal requester of a fault in a human readable format for a JM core.
+ */
+const char *decode_fault_source_jm_t(u16 idx, u32 gpu_id);
+
+#endif /* _MALI_KBASE_MMU_FAULTS_DECODER_LUTS_JM_H_ */

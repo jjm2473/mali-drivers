@@ -27,6 +27,7 @@
 #include <soc/rockchip/rockchip_opp_select.h>
 
 #include "mali_kbase_rk.h"
+#include <platform/mali_kbase_platform_common.h>
 
 /**
  * @file mali_kbase_config_rk.c
@@ -169,12 +170,12 @@ struct kbase_platform_funcs_conf platform_funcs = {
 
 /*---------------------------------------------------------------------------*/
 
-static int rk_pm_callback_runtime_on(struct kbase_device *kbdev)
+static __maybe_unused int rk_pm_callback_runtime_on(struct kbase_device *kbdev)
 {
 	return 0;
 }
 
-static void rk_pm_callback_runtime_off(struct kbase_device *kbdev)
+static __maybe_unused void rk_pm_callback_runtime_off(struct kbase_device *kbdev)
 {
 }
 
@@ -236,29 +237,22 @@ static void rk_pm_callback_power_off(struct kbase_device *kbdev)
 			   msecs_to_jiffies(platform->delay_ms));
 }
 
-int rk_kbase_device_runtime_init(struct kbase_device *kbdev)
+static int rk_kbase_device_runtime_init(struct kbase_device *kbdev)
 {
 	return 0;
 }
 
-void rk_kbase_device_runtime_disable(struct kbase_device *kbdev)
+static void rk_kbase_device_runtime_disable(struct kbase_device *kbdev)
 {
 }
 
 struct kbase_pm_callback_conf pm_callbacks = {
 	.power_on_callback = rk_pm_callback_power_on,
 	.power_off_callback = rk_pm_callback_power_off,
-#ifdef CONFIG_PM
-	.power_runtime_init_callback = rk_kbase_device_runtime_init,
-	.power_runtime_term_callback = rk_kbase_device_runtime_disable,
-	.power_runtime_on_callback = rk_pm_callback_runtime_on,
-	.power_runtime_off_callback = rk_pm_callback_runtime_off,
-#else				/* CONFIG_PM */
-	.power_runtime_init_callback = NULL,
-	.power_runtime_term_callback = NULL,
-	.power_runtime_on_callback = NULL,
-	.power_runtime_off_callback = NULL,
-#endif				/* CONFIG_PM */
+	.power_runtime_init_callback = pm_ptr(rk_kbase_device_runtime_init),
+	.power_runtime_term_callback = pm_ptr(rk_kbase_device_runtime_disable),
+	.power_runtime_on_callback = pm_ptr(rk_pm_callback_runtime_on),
+	.power_runtime_off_callback = pm_ptr(rk_pm_callback_runtime_off),
 };
 
 int kbase_platform_early_init(void)
@@ -461,7 +455,7 @@ static int rk3288_get_soc_info(struct device *dev, struct device_node *np,
 		dev_err(dev, "Failed to get bin config\n");
 	}
 	if (*bin >= 0)
-		dev_info(dev, "bin=%d\n", *bin);
+		dev_dbg(dev, "bin=%d\n", *bin);
 
 out:
 	return ret;

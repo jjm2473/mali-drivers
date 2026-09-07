@@ -1,5 +1,5 @@
 /*
- * (C) COPYRIGHT RockChip Limited. All rights reserved.
+ * (C) COPYRIGHT Rockchip Electronics Co., Ltd. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -41,6 +41,9 @@
 #include <linux/mali/mali_utgard.h>
 #include "mali_kernel_common.h"
 #include "../../common/mali_osk_mali.h"
+#include "mali_memory_util.h"
+
+#include "./rk_ext.h"
 
 /*---------------------------------------------------------------------------*/
 
@@ -404,7 +407,6 @@ static int power_model_simple_init(struct platform_device *pdev)
 
 /*---------------------------------------------------------------------------*/
 
-#ifdef CONFIG_PM
 
 static int rk_platform_enable_clk_gpu(struct device *dev)
 {
@@ -466,7 +468,7 @@ static int rk_platform_power_on_gpu(struct device *dev)
 			goto fail_to_enable_regulator;
 		}
 
-		if (cpu_is_rk3528()) {
+		if (cpu_is_rk3528() || cpu_is_rk3518()) {
 #if defined(CONFIG_MALI_DEVFREQ) && defined(CONFIG_HAVE_CLK)
 			struct mali_device *mdev = dev_get_drvdata(dev);
 
@@ -490,7 +492,7 @@ static void rk_platform_power_off_gpu(struct device *dev)
 	struct rk_context *platform = s_rk_context;
 
 	if (platform->is_powered) {
-		if (cpu_is_rk3528()) {
+		if (cpu_is_rk3528() || cpu_is_rk3518()) {
 #if defined(CONFIG_MALI_DEVFREQ) && defined(CONFIG_HAVE_CLK)
 			struct mali_device *mdev = dev_get_drvdata(dev);
 
@@ -516,6 +518,7 @@ void rk_platform_uninit_opp_table(struct mali_device *mdev)
 	rockchip_uninit_opp_table(mdev->dev, &mdev->opp_info);
 }
 
+#ifdef CONFIG_PM
 static int mali_runtime_suspend(struct device *device)
 {
 	int ret = 0;
@@ -718,6 +721,7 @@ int mali_platform_device_init(struct platform_device *pdev)
 	return 0;
 }
 
+void mali_platform_device_deinit(struct platform_device *pdev);
 void mali_platform_device_deinit(struct platform_device *pdev)
 {
 	MALI_DEBUG_PRINT(4, ("mali_platform_device_unregister() called\n"));

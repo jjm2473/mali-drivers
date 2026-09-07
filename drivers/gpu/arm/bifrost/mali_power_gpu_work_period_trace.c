@@ -1,7 +1,7 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
+// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
 /*
  *
- * (C) COPYRIGHT 2014-2018, 2020-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2023 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -19,12 +19,10 @@
  *
  */
 
-/*
- * Backend specific configuration
- */
-
-#ifndef _KBASE_BACKEND_CONFIG_H_
-#define _KBASE_BACKEND_CONFIG_H_
-
-#endif /* _KBASE_BACKEND_CONFIG_H_ */
-
+/* Create the trace point if not configured in kernel */
+#ifndef CONFIG_TRACE_POWER_GPU_WORK_PERIOD
+#if IS_ENABLED(CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD)
+#define CREATE_TRACE_POINTS
+#include "mali_power_gpu_work_period_trace.h"
+#endif /* CONFIG_MALI_TRACE_POWER_GPU_WORK_PERIOD */
+#endif

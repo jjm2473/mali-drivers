@@ -622,7 +622,7 @@ mali_scheduler_mask mali_timeline_tracker_release(struct mali_timeline_tracker *
 	return schedule_mask;
 }
 
-void mali_timeline_system_release_waiter_list(struct mali_timeline_system *system,
+static void mali_timeline_system_release_waiter_list(struct mali_timeline_system *system,
 		struct mali_timeline_waiter *tail,
 		struct mali_timeline_waiter *head)
 {
@@ -1551,7 +1551,7 @@ static void mali_timeline_do_sync_fence_callback(void *arg)
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		fence_status = atomic_read(&sync_fence->status);
 #else
-		fence_status = sync_fence->fence->ops->signaled(sync_fence->fence);
+		fence_status = mali_dma_fence_is_signaled(sync_fence->fence);
 #endif
 
 		system = tracker->system;

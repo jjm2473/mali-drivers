@@ -80,7 +80,8 @@ struct temp_opp_table {
  * @low_temp_min_volt:	Minimum voltage of OPPs when low temperature, in
  *			microvolt
  * @high_temp_max_volt:	Maximum voltage when high temperature, in microvolt
- * @video_4k_freq:	Maximum frequency when paly 4k video, in KHz
+ * @video_1080p_freq:	Maximum frequency when play 1080p video, in KHz
+ * @video_4k_freq:	Maximum frequency when play 4k video, in KHz
  * @reboot_freq:	Limit maximum and minimum frequency when reboot, in KHz
  * @status_min_limit:	Minimum frequency of some status frequency, in KHz
  * @status_max_limit:	Minimum frequency of all status frequency, in KHz
@@ -88,6 +89,8 @@ struct temp_opp_table {
  * @low_temp:		Low temperature trip point, in millicelsius
  * @high_temp:		High temperature trip point, in millicelsius
  * @temp_hysteresis:	A low hysteresis value on low_temp, in millicelsius
+ * @early_regulator_enable:	True if regulators should be enabled during
+ *				early kernel startup
  * @is_low_temp:	True if current temperature less than low_temp
  * @is_high_temp:	True if current temperature greater than high_temp
  * @is_low_temp_enabled:	True if device node contains low temperature
@@ -111,6 +114,7 @@ struct monitor_dev_info {
 	unsigned long low_temp_min_volt;
 	unsigned long high_temp_max_volt;
 	unsigned int early_suspend_freq;
+	unsigned int video_1080p_freq;
 	unsigned int video_4k_freq;
 	unsigned int reboot_freq;
 	unsigned int status_min_limit;
@@ -119,6 +123,7 @@ struct monitor_dev_info {
 	int low_temp;
 	int high_temp;
 	int temp_hysteresis;
+	bool early_regulator_enable;
 	bool is_low_temp;
 	bool is_high_temp;
 	bool is_low_temp_enabled;
@@ -149,6 +154,8 @@ int rockchip_monitor_dev_low_temp_adjust(struct monitor_dev_info *info,
 int rockchip_monitor_dev_high_temp_adjust(struct monitor_dev_info *info,
 					  bool is_high);
 int rockchip_monitor_suspend_low_temp_adjust(int cpu);
+void rockchip_monitor_remove_cpu_limit(int cpu);
+void rockchip_monitor_restore_cpu_limit(int cpu);
 int rockchip_system_monitor_register_notifier(struct notifier_block *nb);
 void rockchip_system_monitor_unregister_notifier(struct notifier_block *nb);
 #else
@@ -199,6 +206,14 @@ rockchip_monitor_dev_high_temp_adjust(struct monitor_dev_info *info,
 static inline int rockchip_monitor_suspend_low_temp_adjust(int cpu)
 {
 	return 0;
+};
+
+static inline void rockchip_monitor_remove_cpu_limit(int cpu)
+{
+};
+
+static inline void rockchip_monitor_restore_cpu_limit(int cpu)
+{
 };
 
 static inline int

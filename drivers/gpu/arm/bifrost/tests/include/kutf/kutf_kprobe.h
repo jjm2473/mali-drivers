@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  *
- * (C) COPYRIGHT 2010-2016, 2020-2021 ARM Limited. All rights reserved.
+ * (C) COPYRIGHT 2023-2024 ARM Limited. All rights reserved.
  *
  * This program is free software and is provided to you under the terms of the
  * GNU General Public License version 2 as published by the Free Software
@@ -19,10 +19,19 @@
  *
  */
 
-#include "mali_kbase_strings.h"
+#ifndef _KUTF_KPROBE_H_
+#define _KUTF_KPROBE_H_
 
-#define KBASE_DRV_NAME "mali"
-#define KBASE_TIMELINE_NAME KBASE_DRV_NAME ".timeline"
+struct dentry;
 
-const char kbase_drv_name[] = KBASE_DRV_NAME;
-const char kbase_timeline_name[] = KBASE_TIMELINE_NAME;
+int kutf_kprobe_init(struct dentry *base_dir);
+void kutf_kprobe_exit(void);
+
+typedef void (*kutf_kp_handler)(int argc, char **argv);
+
+void kutf_kp_sample_handler(int argc, char **argv);
+void kutf_kp_sample_kernel_function(void);
+
+void kutf_kp_delay_handler(int argc, char **argv);
+
+#endif /* _KUTF_KPROBE_H_ */

@@ -123,7 +123,7 @@ _mali_osk_errcode_t _mali_osk_resource_initialize(void)
 {
 	mali_bool mali_is_450 = MALI_FALSE, mali_is_470 = MALI_FALSE;
 	int i, pp_core_num = 0, l2_core_num = 0;
-	struct resource *res;
+	int irq;
 	const char *compatible_name = NULL;
 
 	if (0 == _mali_osk_get_compatible_name(&compatible_name)) {
@@ -137,12 +137,11 @@ _mali_osk_errcode_t _mali_osk_resource_initialize(void)
 	}
 
 	for (i = 0; i < MALI_OSK_RESOURCE_WITH_IRQ_NUMBER; i++) {
-		res = platform_get_resource_byname(mali_platform_device, IORESOURCE_IRQ, mali_osk_resource_bank[i].irq_name);
-		if (res) {
-			mali_osk_resource_bank[i].irq = res->start;
-		} else {
+		irq = platform_get_irq_byname(mali_platform_device, mali_osk_resource_bank[i].irq_name);
+		if (irq < 0)
 			mali_osk_resource_bank[i].base = MALI_OSK_INVALID_RESOURCE_ADDRESS;
-		}
+		else
+			mali_osk_resource_bank[i].irq = irq;
 	}
 
 	for (i = MALI_OSK_RESOURCE_PP_LOCATION_START; i <= MALI_OSK_RESOURCE_PP_LOCATION_END; i++) {
@@ -229,8 +228,6 @@ uintptr_t _mali_osk_resource_base_address(void)
 void _mali_osk_device_data_pmu_config_get(u16 *domain_config_array, int array_size)
 {
 	struct device_node *node = mali_platform_device->dev.of_node;
-	struct property *prop;
-	const __be32 *p;
 	int length = 0, i = 0;
 	u32 u;
 
@@ -247,7 +244,7 @@ void _mali_osk_device_data_pmu_config_get(u16 *domain_config_array, int array_si
 		return;
 	}
 
-	of_property_for_each_u32(node, "pmu_domain_config", prop, p, u) {
+	of_property_for_each_u32(node, "pmu_domain_config", u) {
 		domain_config_array[i] = (u16)u;
 		i++;
 	}
