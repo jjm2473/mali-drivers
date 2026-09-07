@@ -20,10 +20,13 @@ fi
 	exit 1
 }
 
-rm -rf drivers/gpu/arm
-mkdir -p drivers/gpu/arm
+rm -rf drivers/gpu/arm include/uapi/gpu/arm
+mkdir -p drivers/gpu/arm include/uapi/gpu/arm
 
-echo "copy drivers/gpu/arm"
+echo "copy drivers/gpu/arm include/uapi/gpu/arm"
 cp -a "$UPSTREAM_SOURCE_DIR/drivers/gpu/arm" drivers/gpu/
+cp -a "$UPSTREAM_SOURCE_DIR/include/uapi/gpu/arm" include/uapi/gpu/
+rm -rf drivers/gpu/arm/valhall include/uapi/gpu/arm/valhall
+rm -f drivers/gpu/arm/bifrost/mali_csffw.bin
 
-find include -type f | grep -v '^include/compat/' | xargs -n1 sh -c 'echo "copy $0" ; cp -a "'"$UPSTREAM_SOURCE_DIR"'/$0" "$0"'
+find include -type f | grep -v -e '^include/compat/' -e '^include/uapi/gpu/arm/' | xargs -n1 sh -c 'echo "copy $0" ; cp -a "'"$UPSTREAM_SOURCE_DIR"'/$0" "$0"'
