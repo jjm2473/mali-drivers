@@ -34,7 +34,7 @@
 #include <linux/dma-buf.h>
 #include <linux/shrinker.h>
 #include <linux/cache.h>
-#include <linux/memory_group_manager_for_bifrost.h>
+#include <linux/memory_group_manager.h>
 #include <linux/math64.h>
 #include <linux/migrate.h>
 #include <linux/version.h>
@@ -293,7 +293,7 @@ void kbase_phy_alloc_mapping_put(struct kbase_context *kctx, struct kbase_vmap_s
 }
 
 struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages, u64 commit_pages,
-					u64 extension, u64 *flags, u64 *gpu_va,
+					u64 extension, base_mem_alloc_flags *flags, u64 *gpu_va,
 					enum kbase_caller_mmu_sync_info mmu_sync_info)
 {
 	struct kbase_va_region *reg;
@@ -318,9 +318,8 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 	else
 		dev_dbg(dev, "Keeping requested GPU VA of 0x%llx\n", (unsigned long long)*gpu_va);
 
-	if (!kbase_check_alloc_flags(*flags)) {
-		dev_warn(dev, "%s called with bad flags (%llx)", __func__,
-			 (unsigned long long)*flags);
+	if (!kbase_check_alloc_flags(kctx, *flags)) {
+		dev_warn(dev, "%s called with bad flags (%llx)", __func__, *flags);
 		goto bad_flags;
 	}
 
@@ -332,6 +331,12 @@ struct kbase_va_region *kbase_mem_alloc(struct kbase_context *kctx, u64 va_pages
 		*flags &= ~(BASE_MEM_COHERENT_SYSTEM_REQUIRED | BASE_MEM_COHERENT_SYSTEM);
 	}
 #endif
+
+	/* Ensure GPU cached if CPU cached */
+	if ((*flags & BASE_MEM_CACHED_CPU) != 0) {
+		dev_warn_once(dev, "Clearing BASE_MEM_UNCACHED_GPU flag to avoid MMA violation\n");
+		*flags &= ~BASE_MEM_UNCACHED_GPU;
+	}
 
 	if ((*flags & BASE_MEM_UNCACHED_GPU) != 0 &&
 	    (*flags & BASE_MEM_COHERENT_SYSTEM_REQUIRED) != 0) {
@@ -586,11 +591,11 @@ int kbase_mem_query(struct kbase_context *kctx, u64 gpu_addr, u64 query, u64 *co
 			*out |= BASE_MEM_COHERENT_SYSTEM;
 		if (KBASE_REG_SHARE_IN & reg->flags)
 			*out |= BASE_MEM_COHERENT_LOCAL;
-		if (mali_kbase_supports_mem_dont_need(kctx->api_version)) {
+		if (mali_kbase_supports_query_mem_dont_need(kctx->api_version)) {
 			if (KBASE_REG_DONT_NEED & reg->flags)
 				*out |= BASE_MEM_DONT_NEED;
 		}
-		if (mali_kbase_supports_mem_grow_on_gpf(kctx->api_version)) {
+		if (mali_kbase_supports_query_mem_grow_on_gpf(kctx->api_version)) {
 			/* Prior to this version, this was known about by
 			 * user-side but we did not return them. Returning
 			 * it caused certain clients that were not expecting
@@ -600,7 +605,7 @@ int kbase_mem_query(struct kbase_context *kctx, u64 gpu_addr, u64 query, u64 *co
 			if (KBASE_REG_PF_GROW & reg->flags)
 				*out |= BASE_MEM_GROW_ON_GPF;
 		}
-		if (mali_kbase_supports_mem_protected(kctx->api_version)) {
+		if (mali_kbase_supports_query_mem_protected(kctx->api_version)) {
 			/* Prior to this version, this was known about by
 			 * user-side but we did not return them. Returning
 			 * it caused certain clients that were not expecting
@@ -629,17 +634,17 @@ int kbase_mem_query(struct kbase_context *kctx, u64 gpu_addr, u64 query, u64 *co
 #endif /* MALI_USE_CSF */
 		if (KBASE_REG_GPU_VA_SAME_4GB_PAGE & reg->flags)
 			*out |= BASE_MEM_GPU_VA_SAME_4GB_PAGE;
-		if (mali_kbase_supports_mem_import_sync_on_map_unmap(kctx->api_version)) {
+		if (mali_kbase_supports_query_mem_import_sync_on_map_unmap(kctx->api_version)) {
 			if (reg->gpu_alloc->type == KBASE_MEM_TYPE_IMPORTED_UMM) {
 				if (reg->gpu_alloc->imported.umm.need_sync)
 					*out |= BASE_MEM_IMPORT_SYNC_ON_MAP_UNMAP;
 			}
 		}
-		if (mali_kbase_supports_mem_kernel_sync(kctx->api_version)) {
+		if (mali_kbase_supports_query_mem_kernel_sync(kctx->api_version)) {
 			if (unlikely(reg->cpu_alloc != reg->gpu_alloc))
 				*out |= BASE_MEM_KERNEL_SYNC;
 		}
-		if (mali_kbase_supports_mem_same_va(kctx->api_version)) {
+		if (mali_kbase_supports_query_mem_same_va(kctx->api_version)) {
 			if (kbase_bits_to_zone(reg->flags) == SAME_VA_ZONE) {
 				/* Imported memory is an edge case, where declaring it SAME_VA
 				 * would be ambiguous.
@@ -951,7 +956,8 @@ bool kbase_mem_evictable_unmake(struct kbase_mem_phy_alloc *gpu_alloc)
  *
  * Return: 0 on success, error code otherwise.
  */
-static int kbase_mem_flags_change_imported_umm(struct kbase_context *kctx, unsigned int flags,
+static int kbase_mem_flags_change_imported_umm(struct kbase_context *kctx,
+					       base_mem_alloc_flags flags,
 					       struct kbase_va_region *reg)
 {
 	unsigned int real_flags = 0;
@@ -1034,7 +1040,7 @@ static int kbase_mem_flags_change_imported_umm(struct kbase_context *kctx, unsig
  *
  * Return: 0 on success, error code otherwise.
  */
-static int kbase_mem_flags_change_native(struct kbase_context *kctx, unsigned int flags,
+static int kbase_mem_flags_change_native(struct kbase_context *kctx, base_mem_alloc_flags flags,
 					 struct kbase_va_region *reg)
 {
 	bool kbase_reg_dont_need_flag = (KBASE_REG_DONT_NEED & reg->flags);
@@ -1051,7 +1057,7 @@ static int kbase_mem_flags_change_native(struct kbase_context *kctx, unsigned in
 		 * looking up all physical pages assigned to different GPU VAs
 		 * and all CPU mappings associated with those physical pages.
 		 */
-		if (atomic64_read(&reg->gpu_alloc->gpu_mappings) > 1)
+		if (atomic_read(&reg->gpu_alloc->gpu_mappings) > 1)
 			return -EINVAL;
 
 		if (atomic_read(&reg->cpu_alloc->kernel_mappings) > 0)
@@ -1066,8 +1072,8 @@ static int kbase_mem_flags_change_native(struct kbase_context *kctx, unsigned in
 	return ret;
 }
 
-int kbase_mem_flags_change(struct kbase_context *kctx, u64 gpu_addr, unsigned int flags,
-			   unsigned int mask)
+int kbase_mem_flags_change(struct kbase_context *kctx, u64 gpu_addr, base_mem_alloc_flags flags,
+			   base_mem_alloc_flags mask)
 {
 	struct kbase_va_region *reg;
 	int ret = -EINVAL;
@@ -1457,7 +1463,7 @@ static int get_umm_memory_group_id(struct kbase_context *kctx, struct dma_buf *d
  * object that wraps the dma-buf.
  */
 static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, int fd, u64 *va_pages,
-						  u64 *flags, u32 padding)
+						  base_mem_alloc_flags *flags, u32 padding)
 {
 	struct kbase_va_region *reg;
 	struct dma_buf *dma_buf;
@@ -1466,6 +1472,10 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, in
 	bool shared_zone = false;
 	bool need_sync = false;
 	int group_id;
+
+	/* 64-bit address range is the max */
+	if (*va_pages > (U64_MAX / PAGE_SIZE))
+		return NULL;
 
 	dma_buf = dma_buf_get(fd);
 	if (IS_ERR_OR_NULL(dma_buf))
@@ -1477,16 +1487,15 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, in
 		return NULL;
 	}
 
-	*va_pages = (PAGE_ALIGN(dma_buf->size) >> PAGE_SHIFT) + (u64)padding;
-	if (!*va_pages)
-		goto dma_buf_exit;
-
-	/* 64-bit address range is the max */
-	if (*va_pages > (U64_MAX / PAGE_SIZE))
-		goto dma_buf_exit;
+	*va_pages = (PAGE_ALIGN(dma_buf->size) >> PAGE_SHIFT) + padding;
+	if (!*va_pages) {
+		dma_buf_detach(dma_buf, dma_attachment);
+		dma_buf_put(dma_buf);
+		return NULL;
+	}
 
 	if (!kbase_import_size_is_valid(kctx->kbdev, *va_pages))
-		goto dma_buf_exit;
+		return NULL;
 
 	/* ignore SAME_VA */
 	*flags &= ~BASE_MEM_SAME_VA;
@@ -1524,8 +1533,11 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, in
 
 	reg = kbase_ctx_alloc_free_region(kctx, zone, 0, *va_pages);
 
-	if (!reg)
-		goto dma_buf_exit;
+	if (!reg) {
+		dma_buf_detach(dma_buf, dma_attachment);
+		dma_buf_put(dma_buf);
+		return NULL;
+	}
 
 	group_id = get_umm_memory_group_id(kctx, dma_buf);
 
@@ -1583,10 +1595,6 @@ error_out:
 no_alloc:
 	kfree(reg);
 
-dma_buf_exit:
-	dma_buf_detach(dma_buf, dma_attachment);
-	dma_buf_put(dma_buf);
-
 	return NULL;
 }
 
@@ -1601,7 +1609,8 @@ u32 kbase_get_cache_line_alignment(struct kbase_device *kbdev)
 
 static struct kbase_va_region *kbase_mem_from_user_buffer(struct kbase_context *kctx,
 							  unsigned long address, unsigned long size,
-							  u64 *va_pages, u64 *flags)
+							  u64 *va_pages,
+							  base_mem_alloc_flags *flags)
 {
 	struct kbase_va_region *reg;
 	enum kbase_memory_zone zone = CUSTOM_VA_ZONE;
@@ -1733,7 +1742,7 @@ bad_size:
 	return NULL;
 }
 
-u64 kbase_mem_alias(struct kbase_context *kctx, u64 *flags, u64 stride, u64 nents,
+u64 kbase_mem_alias(struct kbase_context *kctx, base_mem_alloc_flags *flags, u64 stride, u64 nents,
 		    struct base_mem_aliasing_info *ai, u64 *num_pages)
 {
 	struct kbase_va_region *reg;
@@ -1955,7 +1964,8 @@ bad_flags:
 }
 
 int kbase_mem_import(struct kbase_context *kctx, enum base_mem_import_type type,
-		     void __user *phandle, u32 padding, u64 *gpu_va, u64 *va_pages, u64 *flags)
+		     void __user *phandle, u32 padding, u64 *gpu_va, u64 *va_pages,
+		     base_mem_alloc_flags *flags)
 {
 	struct kbase_va_region *reg;
 
@@ -2198,7 +2208,7 @@ int kbase_mem_commit(struct kbase_context *kctx, u64 gpu_addr, u64 new_pages)
 	 * Note that for Native allocs mapped at multiple GPU VAs, growth of
 	 * such allocs is not a supported use-case.
 	 */
-	if (atomic64_read(&reg->gpu_alloc->gpu_mappings) > 1)
+	if (atomic_read(&reg->gpu_alloc->gpu_mappings) > 1)
 		goto out_unlock;
 
 	if (atomic_read(&reg->cpu_alloc->kernel_mappings) > 0)
@@ -2525,8 +2535,7 @@ static int kbase_cpu_mmap(struct kbase_context *kctx, struct kbase_va_region *re
 	 * See MIDBASE-1057
 	 */
 
-	__vm_flags_mod(vma, VM_DONTCOPY | VM_DONTDUMP | VM_DONTEXPAND | VM_IO, 0);
-
+	vm_flags_set(vma, VM_DONTCOPY | VM_DONTDUMP | VM_DONTEXPAND | VM_IO);
 	vma->vm_ops = &kbase_vm_ops;
 	vma->vm_private_data = map;
 
@@ -2553,11 +2562,11 @@ static int kbase_cpu_mmap(struct kbase_context *kctx, struct kbase_va_region *re
 	}
 
 	if (!kaddr)
-		__vm_flags_mod(vma, VM_PFNMAP, 0);
+		vm_flags_set(vma, VM_PFNMAP);
 	else {
 		WARN_ON(aligned_offset);
 		/* MIXEDMAP so we can vfree the kaddr early and not track it after map time */
-		__vm_flags_mod(vma, VM_MIXEDMAP, 0);
+		vm_flags_set(vma, VM_MIXEDMAP);
 		/* vmalloc remaping is easy... */
 		err = remap_vmalloc_range(vma, kaddr, 0);
 		WARN_ON(err);
@@ -2970,7 +2979,7 @@ static void kbase_vmap_phy_pages_migrate_count_increment(struct tagged_addr *pag
 {
 	size_t i;
 
-	if (!kbase_is_page_migration_enabled())
+	if (!IS_ENABLED(CONFIG_PAGE_MIGRATION_SUPPORT))
 		return;
 
 	for (i = 0; i < page_count; i++) {
@@ -3022,7 +3031,7 @@ static void kbase_vunmap_phy_pages_migrate_count_decrement(struct tagged_addr *p
 {
 	size_t i;
 
-	if (!kbase_is_page_migration_enabled())
+	if (!IS_ENABLED(CONFIG_PAGE_MIGRATION_SUPPORT))
 		return;
 
 	for (i = 0; i < page_count; i++) {
@@ -3310,8 +3319,8 @@ static int kbase_tracking_page_setup(struct kbase_context *kctx, struct vm_area_
 		return -EINVAL;
 
 	/* no real access */
-	__vm_flags_mod(vma, VM_DONTCOPY | VM_DONTEXPAND | VM_DONTDUMP | VM_IO,
-		       VM_READ | VM_MAYREAD | VM_WRITE | VM_MAYWRITE | VM_EXEC | VM_MAYEXEC);
+	vm_flags_clear(vma, VM_READ | VM_MAYREAD | VM_WRITE | VM_MAYWRITE | VM_EXEC | VM_MAYEXEC);
+	vm_flags_set(vma, VM_DONTCOPY | VM_DONTEXPAND | VM_DONTDUMP | VM_IO);
 
 	return 0;
 }
@@ -3529,13 +3538,13 @@ static int kbase_csf_cpu_mmap_user_io_pages(struct kbase_context *kctx, struct v
 	if (err)
 		goto map_failed;
 
-	__vm_flags_mod(vma, VM_DONTCOPY | VM_DONTDUMP | VM_DONTEXPAND | VM_IO, 0);
+	vm_flags_set(vma, VM_DONTCOPY | VM_DONTDUMP | VM_DONTEXPAND | VM_IO);
 	/* TODO use VM_MIXEDMAP, since it is more appropriate as both types of
 	 * memory with and without "struct page" backing are being inserted here.
 	 * Hw Doorbell pages comes from the device register area so kernel does
 	 * not use "struct page" for them.
 	 */
-	__vm_flags_mod(vma, VM_PFNMAP, 0);
+	vm_flags_set(vma, VM_PFNMAP);
 
 	vma->vm_ops = &kbase_csf_user_io_pages_vm_ops;
 	vma->vm_private_data = queue;

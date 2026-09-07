@@ -99,7 +99,6 @@ static ssize_t param_string_set(struct file *file, const char __user *user_buf, 
 	ssize_t ret = (ssize_t)count;
 	size_t buf_size;
 	int err;
-	size_t copy_size;
 
 	CSTD_UNUSED(ppos);
 
@@ -116,12 +115,7 @@ static ssize_t param_string_set(struct file *file, const char __user *user_buf, 
 		goto end;
 	}
 
-	if (check_sub_overflow(param->size, (size_t)1, &copy_size)) {
-		ret = -EINVAL;
-		goto end;
-	}
-
-	buf_size = min(copy_size, count);
+	buf_size = min(size_sub(param->size, 1), count);
 	if (copy_from_user(param->addr.str, user_buf, buf_size)) {
 		ret = -EFAULT;
 		goto end;

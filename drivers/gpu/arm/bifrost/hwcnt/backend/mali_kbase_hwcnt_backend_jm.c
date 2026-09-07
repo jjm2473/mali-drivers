@@ -114,8 +114,6 @@ struct kbase_hwcnt_jm_physical_layout {
  * @rate_listener:       Clock rate listener callback state.
  * @ccswe_shader_cores:  Shader cores cycle count software estimator.
  * @phys_layout:         Physical memory layout information of HWC sample buffer.
- * @dump_time_ns:        Holds the CPU timestamp captured at the time of
- *                       dump_request().
  */
 struct kbase_hwcnt_backend_jm {
 	const struct kbase_hwcnt_backend_jm_info *info;
@@ -138,7 +136,6 @@ struct kbase_hwcnt_backend_jm {
 	struct kbase_clk_rate_listener rate_listener;
 	struct kbase_ccswe ccswe_shader_cores;
 	struct kbase_hwcnt_jm_physical_layout phys_layout;
-	u64 dump_time_ns;
 };
 
 /**
@@ -532,7 +529,8 @@ static int kbasep_hwcnt_backend_jm_dump_clear(struct kbase_hwcnt_backend *backen
 }
 
 /* JM backend implementation of kbase_hwcnt_backend_dump_request_fn */
-static int kbasep_hwcnt_backend_jm_dump_request(struct kbase_hwcnt_backend *backend)
+static int kbasep_hwcnt_backend_jm_dump_request(struct kbase_hwcnt_backend *backend,
+						u64 *dump_time_ns)
 {
 	struct kbase_hwcnt_backend_jm *backend_jm = (struct kbase_hwcnt_backend_jm *)backend;
 	struct kbase_device *kbdev;
@@ -541,7 +539,7 @@ static int kbasep_hwcnt_backend_jm_dump_request(struct kbase_hwcnt_backend *back
 	size_t clk;
 	int ret;
 
-	if (!backend_jm || !backend_jm->enabled)
+	if (!backend_jm || !backend_jm->enabled || !dump_time_ns)
 		return -EINVAL;
 
 	kbdev = backend_jm->kctx->kbdev;
@@ -550,7 +548,7 @@ static int kbasep_hwcnt_backend_jm_dump_request(struct kbase_hwcnt_backend *back
 	/* Disable pre-emption, to make the timestamp as accurate as possible */
 	preempt_disable();
 	{
-		backend_jm->dump_time_ns = kbasep_hwcnt_backend_jm_timestamp_ns(backend);
+		*dump_time_ns = kbasep_hwcnt_backend_jm_timestamp_ns(backend);
 		ret = kbase_instr_hwcnt_request_dump(backend_jm->kctx);
 
 		kbase_hwcnt_metadata_for_each_clock(metadata, clk) {
@@ -567,7 +565,7 @@ static int kbasep_hwcnt_backend_jm_dump_request(struct kbase_hwcnt_backend *back
 				 * domain.
 				 */
 				current_cycle_count = kbase_ccswe_cycle_at(
-					&backend_jm->ccswe_shader_cores, backend_jm->dump_time_ns);
+					&backend_jm->ccswe_shader_cores, *dump_time_ns);
 			}
 			backend_jm->cycle_count_elapsed[clk] =
 				current_cycle_count - backend_jm->prev_cycle_count[clk];
@@ -613,7 +611,7 @@ static int kbasep_hwcnt_backend_jm_dump_wait(struct kbase_hwcnt_backend *backend
 static int kbasep_hwcnt_backend_jm_dump_get(struct kbase_hwcnt_backend *backend,
 					    struct kbase_hwcnt_dump_buffer *dst,
 					    const struct kbase_hwcnt_enable_map *dst_enable_map,
-					    bool accumulate, u64 *dump_time_ns)
+					    bool accumulate)
 {
 	struct kbase_hwcnt_backend_jm *backend_jm = (struct kbase_hwcnt_backend_jm *)backend;
 	size_t clk;
@@ -623,7 +621,7 @@ static int kbasep_hwcnt_backend_jm_dump_get(struct kbase_hwcnt_backend *backend,
 #endif /* CONFIG_MALI_BIFROST_NO_MALI */
 	int errcode;
 
-	if (!backend_jm || !dst || !dst_enable_map || !dump_time_ns ||
+	if (!backend_jm || !dst || !dst_enable_map ||
 	    (backend_jm->info->metadata != dst->metadata) ||
 	    (dst_enable_map->metadata != dst->metadata))
 		return -EINVAL;
@@ -666,7 +664,6 @@ static int kbasep_hwcnt_backend_jm_dump_get(struct kbase_hwcnt_backend *backend,
 	if (errcode)
 		return errcode;
 
-	*dump_time_ns = backend_jm->dump_time_ns;
 	kbase_hwcnt_dump_buffer_block_state_update(dst, dst_enable_map,
 						   backend_jm->sampled_all_blk_stt);
 	kbase_hwcnt_block_state_set(&backend_jm->sampled_all_blk_stt, KBASE_HWCNT_STATE_UNKNOWN);
@@ -686,7 +683,7 @@ static int kbasep_hwcnt_backend_jm_dump_alloc(const struct kbase_hwcnt_backend_j
 					      struct kbase_context *kctx, u64 *gpu_dump_va)
 {
 	struct kbase_va_region *reg;
-	u64 flags;
+	base_mem_alloc_flags flags;
 	u64 nr_pages;
 
 	/* Calls to this function are inherently asynchronous, with respect to
